@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Hex Encoder</title>
+        <style>
+            body {
+                width: 100%;
+                height: 100%;
+                font-family: sans-serif;
+                margin: 0;
+            }
+            .window {
+                width: calc(80% - 25px);
+                height: calc(80% - 25px);
+                border: 1px solid lightgrey;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                filter: drop-shadow(grey 0.5rem 0.5rem 5px);
+                background-color: #f4f4f4;
+                padding: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="window">
+            <b>Hex Encoder</b>
+            <br><br>
+            Text:<br>
+            <input id="a"> <button id="c">Convert</button>
+            <br><br>
+            Output:<br>
+            <textarea id="b"></textarea>
+        </div>
+        <script type="module">
+            import buffer from 'https://cdn.jsdelivr.net/npm/buffer@6.0.3/+esm'
+            console.log(Buffer);
+            
+            function convert() {
+                document.getElementById('b').value = bufferPolyfill.from(document.getElementById('a').value).toString('hex');
+            }
+            document.getElementById('c').addEventListener('click', convert);
+        </script>
+    </body>
+</html>
