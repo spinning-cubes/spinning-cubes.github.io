@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Vix! - New Livestream</title>
+        <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+        <link rel="stylesheet" href="style.css"> <link rel="icon" href="logo.ico" type="image/x-icon">
+    </head>
+    <body>
+        <div class="top left top-nav abs">
+            <img id="logo" src="logo.png"></img><span> Vix!</span>
+        </div>
+        <span class="top right right-nav abs">
+            <button onclick="location.href = '/chat.html'" style="background-color: rgb(190, 54, 54); border-color: rgb(119, 36, 36);">Chatroom</button>
+            <button onclick="location.href = '/home.html'">Home</button>
+            <button onclick="location.href = '/upload.html'">Upload</button>
+            <button onclick="location.href = '/ac.html?user=username'">My Account</button>
+            <button onclick="location.href = '/eula'">EULA</button>
+        </span>
+
+        <div class="content abs" style="font-size: 12pt;">
+            <h1>New Livestream</h1>
+            Stream name: <br><input id="name" style="width: calc(100% - 9px);"><br>
+            Stream description:<br><textarea id="desc" rows="6"></textarea><br>
+            <input id="author"readonly style="display: none;"><br>
+            <input type="text" id="streamIdDisplay" readonly style="display: none;">
+            <button id="generateAndRegisterStreamButton" style="background-color: rgb(190, 54, 54); border-color: rgb(119, 36, 36);">Start Stream</button> 
+            <button id="stopStreamButton" style="background-color: rgb(190, 54, 54); border-color: rgb(119, 36, 36); display: none;">Stop Stream</button>
+            <br><br>
+            <div id="a22" style="display: none;">
+                Type:<br>
+                <button id="startCamStreamButton">Camera Stream</button>
+                <button id="startScreenShareButton">Screen Share</button>
+            </div>
+            <br>
+            <div id="a23" style="display: none;">
+                Preview:<br>
+                <video id="localVideo" autoplay muted playsinline></video>
+            </div>
+            <p id="streamerStatus" style="position: fixed; bottom: 10px; left: 10px; color: white; background-color: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px; z-index: 1000;"></p>
+            <div style="display: none;">
+                <h3>Active Viewers:</h3>
+                <ul id="activeViewersList"></ul>
+
+                <h3>Chat Room</h3>
+                <div id="streamerChatDisplay" style="border: 1px solid black; height: 200px; overflow-y: scroll; margin-bottom: 10px; padding: 5px;"></div>
+                <input type="text" id="streamerChatInput" placeholder="Type your message..." style="width: calc(100% - 70px);">
+                <button id="sendStreamerChatButton" disabled>Send</button>
+
+            <!-- Section for viewer functionality (hidden) -->
+            <div id="viewerSection" style="display: none;">
+                <h2>Watch a Livestream</h2>
+                <div>
+                    <h3>Available Streams (UUIDs):</h3>
+                    <ul id="availableStreamsList">
+                        <li>No streams available.</li>
+                    </ul>
+                    <button id="refreshStreamsButton">Refresh Streams</button>
+                </div>
+                <div>
+                    <label for="viewerChatNickname">Your Chat Nickname:</label>
+                    <input type="text" id="viewerChatNickname" placeholder="Enter chat name">
+                    <button id="setNicknameButton">Set Nickname</button>
+                </div>
+                <div>
+                    <label for="selectedStreamId">Stream ID to Join:</label>
+                    <input type="text" id="selectedStreamId" placeholder="Select from list or type UUID" size="38">
+                    <button id="joinStreamButton" disabled>Join Stream</button>
+                </div>
+                <video id="remoteVideo" autoplay playsinline></video>
+                <p id="viewerStatus"></p>
+
+                <h3>Chat Room (<span id="chatRoomName">Not Joined</span>)</h3>
+                <div id="viewerChatDisplay" style="border: 1px solid black; height: 200px; overflow-y: scroll; margin-bottom: 10px; padding: 5px;"></div>
+                <input type="text" id="viewerChatInput" placeholder="Type your message..." style="width: calc(100% - 70px);">
+                <button id="sendViewerChatButton" disabled>Send</button>
+            </div>
+            </div>
+        </div>
+
+        <script>
+            const accountUsernameElement = document.getElementById('author');
+
+            let currentUsername = 'Anonymous'; // Default
+
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+
+            const name22 = 'username';
+
+            async function fetchUser() {
+                fetchCurrentUser()
+            }
+
+            // Function to fetch current user and update UI
+            async function fetchCurrentUser() {
+                try {
+                    const response = await fetch('/get_current_user');
+                    const data = await response.json();
+                    currentUsername = data.username;
+                    if (currentUsername === 'Guest') {
+                        accountUsernameElement.value = 'Anonymous';
+                    } else {
+                        accountUsernameElement.value = currentUsername;
+                    }
+
+                } catch (error) {
+                    console.error('Error fetching current user:', error);
+                    accountUsernameElement.value = 'Anonymous';
+                }
+            }
+
+            // On page load
+            document.addEventListener('DOMContentLoaded', fetchUser);
+        </script>
+
+
+
+
+
+
+        <script>
+            const streamerSectionDiv = document.getElementById('streamerSection');
+            const viewerSectionDiv = document.getElementById('viewerSection');
+            const a22 = document.getElementById('a22');
+            const a23 = document.getElementById('a23');
+
+
+            // Streamer elements
+            const streamIdDisplay = document.getElementById('streamIdDisplay');
+            const streamName = document.getElementById('name');
+            const streamDesc = document.getElementById('desc');
+            const streamAuthor = document.getElementById('author');
+            const generateAndRegisterStreamButton = document.getElementById('generateAndRegisterStreamButton');
+            const startCamStreamButton = document.getElementById('startCamStreamButton');
+            const startScreenShareButton = document.getElementById('startScreenShareButton');
+            const stopStreamButton = document.getElementById('stopStreamButton');
+            const localVideo = document.getElementById('localVideo');
+            const streamerStatusElement = document.getElementById('streamerStatus');
+            const activeViewersList = document.getElementById('activeViewersList');
+            const streamerChatDisplay = document.getElementById('streamerChatDisplay');
+            const streamerChatInput = document.getElementById('streamerChatInput');
+            const sendStreamerChatButton = document.getElementById('sendStreamerChatButton');
+
+            // Viewer elements
+            const availableStreamsList = document.getElementById('availableStreamsList');
+            const refreshStreamsButton = document.getElementById('refreshStreamsButton');
+            const viewerChatNicknameInput = document.getElementById('viewerChatNickname');
+            const setNicknameButton = document.getElementById('setNicknameButton');
+            const selectedStreamIdInput = document.getElementById('selectedStreamId'); // Changed ID
+            const joinStreamButton = document.getElementById('joinStreamButton');
+            const remoteVideo = document.getElementById('remoteVideo');
+            const viewerStatusElement = document.getElementById('viewerStatus');
+            const chatRoomNameSpan = document.getElementById('chatRoomName');
+            const viewerChatDisplay = document.getElementById('viewerChatDisplay');
+            const viewerChatInput = document.getElementById('viewerChatInput');
+            const sendViewerChatButton = document.getElementById('sendViewerChatButton');
+
+            // Global variables for WebRTC and WebSocket
+            let localStream = null; // Streamer's local media stream
+            let peerConnection = null; // Viewer's single RTCPeerConnection
+            // Streamer's map of {viewer_id: RTCPeerConnection}
+            let viewerPeerConnections = {};
+            let ws = null; // WebSocket object for signaling
+            let currentRole = null; // Stores 'streamer' or 'viewer'
+            let myStreamId = null; // Streamer's own stream ID (UUID)
+            let viewerMyNickname = null; // Viewer's chat nickname
+            let connectedStreamId = null; // Viewer's currently joined stream ID
+            let isScreenSharing = false; // Flag to indicate if streamer is screen sharing
+
+            // ICE server configuration (using Google's public STUN server)
+            const configuration = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            };
+
+            /**
+             * Generates a UUID.
+             * @returns {string} A new UUID.
+             */
+            function generateUUID() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0,
+                        v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+
+            /**
+             * Updates the status message displayed on the page based on the current role.
+             * @param {string} role - The current role ('streamer' or 'viewer').
+             * @param {string} message - The message to display.
+             */
+            function setStatus(role, message) {
+                if (role === 'streamer') {
+                    streamerStatusElement.textContent = message;
+                } else if (role === 'viewer') {
+                    viewerStatusElement.textContent = message;
+                }
+            }
+
+            /**
+             * Appends a chat message to the respective chat display area.
+             * @param {string} role - 'streamer' or 'viewer'.
+             * @param {object} message - The chat message object.
+             */
+            function displayChatMessage(role, message) {
+                const chatDisplay = role === 'streamer' ? streamerChatDisplay : viewerChatDisplay;
+                const msgElement = document.createElement('p');
+                msgElement.innerHTML = `<strong>[${message.timestamp}] ${message.sender_name}:</strong> ${message.content}`;
+                chatDisplay.appendChild(msgElement);
+                chatDisplay.scrollTop = chatDisplay.scrollHeight; // Auto-scroll to bottom
+            }
+
+            /**
+             * Initializes the WebSocket connection.
+             * The specific RTCPeerConnection creation and SDP exchange logic differs by role.
+             * @param {string} role - The role to initialize as ('streamer' or 'viewer').
+             */
+            function initializeWebSocket(role) {
+                currentRole = role;
+                const signalingServerUrl = `ws://localhost:8766/${role}`;
+                setStatus(role, `Connecting to signaling server as ${role}...`);
+
+                ws = new WebSocket(signalingServerUrl);
+
+                ws.onopen = async () => {
+                    setStatus(role, `Connected to signaling server as ${role}.`);
+                    if (role === 'viewer') {
+                        // Viewer creates its single RTCPeerConnection immediately
+                        peerConnection = new RTCPeerConnection(configuration);
+
+                        peerConnection.onicecandidate = (event) => {
+                            if (event.candidate && ws && ws.readyState === WebSocket.OPEN && connectedStreamId) {
+                                console.log('Viewer: Sending ICE candidate:', event.candidate);
+                                // Send candidate with the stream_id we are connected to
+                                ws.send(JSON.stringify({
+                                    type: 'candidate',
+                                    candidate: event.candidate,
+                                    stream_id: connectedStreamId
+                                }));
+                            }
+                        };
+
+                        peerConnection.ontrack = (event) => {
+                            console.log('Viewer: Received remote track.');
+                            if (remoteVideo.srcObject !== event.streams[0]) {
+                                remoteVideo.srcObject = event.streams[0];
+                                setStatus('viewer', 'Receiving stream!');
+                            }
+                        };
+
+                        peerConnection.onconnectionstatechange = () => {
+                            console.log('Viewer: Peer connection state:', peerConnection.connectionState);
+                            setStatus('viewer', `WebRTC connection state: ${peerConnection.connectionState}`);
+                            if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+                                setStatus('viewer', `Stream ended: ${peerConnection.connectionState}. Please refresh streams and try again.`);
+                                connectedStreamId = null;
+                                chatRoomNameSpan.textContent = 'Not Joined';
+                                sendViewerChatButton.disabled = true;
+                                if (remoteVideo.srcObject) {
+                                    remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                                    remoteVideo.srcObject = null;
+                                }
+                            }
+                        };
+                        // Request active streams list immediately upon connecting as viewer
+                        requestActiveStreams();
+                        viewerChatInput.disabled = false; // Enable chat input initially
+                        sendViewerChatButton.disabled = false; // Enable send button initially
+                    } else if (role === 'streamer') {
+                        // Streamer buttons will be enabled after successful registration
+                        streamerChatInput.disabled = false;
+                        sendStreamerChatButton.disabled = false;
+                    }
+                };
+
+                ws.onmessage = async (event) => {
+                    const message = JSON.parse(event.data);
+                    console.log(`${currentRole} received message:`, message.type, message);
+
+                    if (currentRole === 'streamer') {
+                        if (message.type === 'registration_success') {
+                            setStatus('streamer', `Registered stream ID: '${message.stream_id}'. Choose stream type.`);
+                            a22.style.display = 'block';
+                            startCamStreamButton.disabled = false;
+                            startScreenShareButton.disabled = false;
+                        } else if (message.type === 'new_viewer') {
+                            const viewerId = message.viewer_id;
+                            setStatus('streamer', `New viewer ${viewerId} connected. Setting up connection...`);
+                            console.log(`Streamer: Setting up new PC for viewer: ${viewerId}`);
+
+                            if (!localStream) {
+                                setStatus('streamer', `Local media not ready. Cannot connect to viewer ${viewerId}.`);
+                                return;
+                            }
+
+                            let pc = new RTCPeerConnection(configuration);
+                            viewerPeerConnections[viewerId] = pc; // Store PC in the map
+
+                            localStream.getTracks().forEach(track => {
+                                pc.addTrack(track, localStream);
+                            });
+
+                            pc.onicecandidate = (event) => {
+                                if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                                    console.log(`Streamer: Sending ICE candidate for viewer ${viewerId}:`, event.candidate);
+                                    ws.send(JSON.stringify({
+                                        type: 'candidate',
+                                        candidate: event.candidate,
+                                        viewer_id: viewerId,
+                                        stream_id: myStreamId // Include streamer's stream ID
+                                    }));
+                                }
+                            };
+
+                            pc.onconnectionstatechange = () => {
+                                console.log(`Streamer: PC for viewer ${viewerId} state:`, pc.connectionState);
+                                setStatus('streamer', `Connection to viewer ${viewerId}: ${pc.connectionState}`);
+                                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                                    if (viewerPeerConnections[viewerId]) {
+                                        viewerPeerConnections[viewerId].close();
+                                        delete viewerPeerConnections[viewerId];
+                                        console.log(`Streamer: Viewer ${viewerId} connection removed. Total active viewers: ${Object.keys(viewerPeerConnections).length}`);
+                                        updateActiveViewersList();
+                                    }
+                                }
+                            };
+
+                            const offer = await pc.createOffer();
+                            await pc.setLocalDescription(offer);
+                            console.log(`Streamer: Sending offer to viewer ${viewerId}:`, offer);
+                            ws.send(JSON.stringify({
+                                type: 'offer',
+                                sdp: offer.sdp,
+                                viewer_id: viewerId,
+                                stream_id: myStreamId
+                            }));
+                            setStatus('streamer', `Offer sent to viewer ${viewerId}. Waiting for answer...`);
+                            updateActiveViewersList();
+
+                        } else if (message.type === 'answer') {
+                            const viewerId = message.viewer_id;
+                            const pc = viewerPeerConnections[viewerId];
+                            if (pc) {
+                                if (pc.remoteDescription && pc.remoteDescription.type === 'answer') {
+                                    console.warn(`Streamer: Already received an answer for viewer ${viewerId}, ignoring.`);
+                                    return;
+                                }
+                                console.log(`Streamer: Received answer from viewer ${viewerId}:`, message.sdp);
+                                await pc.setRemoteDescription(new RTCSessionDescription(message));
+                                setStatus('streamer', `Answer from viewer ${viewerId} received. Streaming should start.`);
+                            } else {
+                                console.warn(`Streamer: Received answer for unknown or disconnected viewer_id: ${viewerId}`);
+                            }
+                        } else if (message.type === 'candidate') {
+                            const viewerId = message.viewer_id;
+                            const pc = viewerPeerConnections[viewerId];
+                            if (pc) {
+                                try {
+                                    if (pc.currentRemoteDescription || pc.pendingRemoteDescription) {
+                                        await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+                                        console.log(`Streamer: Added ICE candidate for viewer ${viewerId}.`);
+                                    } else {
+                                        console.warn(`Streamer: Cannot add ICE candidate for viewer ${viewerId}, remote description not set yet.`);
+                                    }
+                                } catch (e) {
+                                    console.error(`Streamer: Error adding ICE candidate for viewer ${viewerId}:`, e);
+                                }
+                            } else {
+                                console.warn(`Streamer: Received candidate for unknown or disconnected viewer_id: ${viewerId}`);
+                            }
+                        } else if (message.type === 'viewer_disconnected') {
+                            const viewerId = message.viewer_id;
+                            if (viewerPeerConnections[viewerId]) {
+                                viewerPeerConnections[viewerId].close();
+                                delete viewerPeerConnections[viewerId];
+                                console.log(`Streamer: Viewer ${viewerId} connection explicitly removed due to server notification.`);
+                                updateActiveViewersList();
+                            }
+                        } else if (message.type === 'new_chat_message') {
+                            displayChatMessage('streamer', message);
+                        } else {
+                            console.warn(`Streamer: Unknown message type received: ${message.type}`);
+                        }
+
+                    } else if (currentRole === 'viewer') {
+                        if (message.type === 'active_streams_list') { // Changed type
+                            updateAvailableStreamsList(message.streams); // Changed key
+                        } else if (message.type === 'nickname_set') {
+                            viewerMyNickname = message.nickname;
+                            viewerChatNicknameInput.disabled = true;
+                            setNicknameButton.disabled = true;
+                            setStatus('viewer', `Nickname set to '${viewerMyNickname}'. Now select a stream.`);
+                            // Only enable join if a stream is selected, not just nickname set
+                            if (selectedStreamIdInput.value.trim() !== "") {
+                                joinStreamButton.disabled = false;
+                            }
+                        } else if (message.type === 'nickname_failed') {
+                            setStatus('viewer', `Failed to set nickname: ${message.reason}`);
+                        }
+                        else if (message.type === 'join_success') {
+                            connectedStreamId = message.stream_id; // Changed key
+                            viewerMyNickname = message.chat_nickname; // Get the nickname assigned/confirmed by server
+                            viewerChatNicknameInput.value = viewerMyNickname;
+                            viewerChatNicknameInput.disabled = true;
+                            setNicknameButton.disabled = true;
+                            chatRoomNameSpan.textContent = connectedStreamId;
+                            setStatus('viewer', `Joined stream '${connectedStreamId}'. Waiting for offer...`);
+                            sendViewerChatButton.disabled = false; // Enable chat after joining
+                        } else if (message.type === 'join_failed') {
+                            setStatus('viewer', `Failed to join stream: ${message.reason}.`);
+                            connectedStreamId = null;
+                            chatRoomNameSpan.textContent = 'Not Joined';
+                            sendViewerChatButton.disabled = true;
+                        } else if (message.type === 'offer') {
+                            if (peerConnection.remoteDescription && peerConnection.remoteDescription.type === 'offer') {
+                                console.warn('Viewer: Already received an offer, ignoring.');
+                                return;
+                            }
+                            setStatus('viewer', 'Received offer. Creating answer...');
+                            console.log('Viewer: Received offer:', message.sdp);
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(message));
+
+                            const answer = await peerConnection.createAnswer();
+                            await peerConnection.setLocalDescription(answer);
+                            console.log('Viewer: Sending answer:', answer);
+                            ws.send(JSON.stringify({
+                                type: 'answer',
+                                sdp: answer.sdp,
+                                stream_id: connectedStreamId // Changed key
+                            }));
+                            setStatus('viewer', 'Answer sent. Waiting for stream...');
+                        } else if (message.type === 'candidate') {
+                            try {
+                                if (peerConnection.currentRemoteDescription || peerConnection.pendingRemoteDescription) {
+                                    await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+                                    console.log('Viewer: Added ICE candidate.');
+                                } else {
+                                    console.warn('Viewer: Cannot add ICE candidate, remote description not set yet.');
+                                }
+                            } catch (e) {
+                                    console.error('Viewer: Error adding received ICE candidate:', e);
+                                }
+                        } else if (message.type === 'stream_disconnected') { // Changed type
+                            setStatus('viewer', `Stream '${message.stream_id}' disconnected. Stream ended.`); // Changed key
+                            console.log(`Viewer: Stream '${message.stream_id}' disconnected. Closing PC and WS.`);
+                            if (peerConnection) {
+                                peerConnection.close();
+                                peerConnection = null;
+                            }
+                            if (remoteVideo.srcObject) {
+                                remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                                remoteVideo.srcObject = null;
+                            }
+                            connectedStreamId = null;
+                            chatRoomNameSpan.textContent = 'Not Joined';
+                            sendViewerChatButton.disabled = true;
+                            // Re-request active streams to update the list
+                            requestActiveStreams();
+                        } else if (message.type === 'new_chat_message') {
+                            displayChatMessage('viewer', message);
+                        } else {
+                            console.warn(`Viewer: Unknown message type received: ${message.type}`);
+                        }
+                    }
+                };
+
+                ws.onclose = () => {
+                    setStatus(currentRole, 'Disconnected from signaling server. (Refresh page?)');
+                    console.log('WebSocket closed for', currentRole);
+                    cleanupWebRTCDevices(currentRole);
+                    // Clear UI elements or reset state as appropriate
+                    if (currentRole === 'viewer') {
+                        availableStreamsList.innerHTML = '<li>Disconnected.</li>';
+                        selectedStreamIdInput.value = '';
+                        joinStreamButton.disabled = true;
+                        viewerChatInput.disabled = true;
+                        sendViewerChatButton.disabled = true;
+                        chatRoomNameSpan.textContent = 'Not Joined';
+                    } else if (currentRole === 'streamer') {
+                        startCamStreamButton.disabled = true;
+                        startScreenShareButton.disabled = true;
+                        stopStreamButton.disabled = true;
+                        streamerChatInput.disabled = true;
+                        sendStreamerChatButton.disabled = true;
+                        a22.style.display = 'none';
+                        a23.style.display = 'none';
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    setStatus(currentRole, `WebSocket error: ${err}`);
+                    console.error('WebSocket error:', error);
+                    if (currentRole === 'streamer') {
+                        generateAndRegisterStreamButton.disabled = false;
+                        streamIdDisplay.disabled = false;
+                        startCamStreamButton.disabled = true;
+                        startScreenShareButton.disabled = true;
+                        stopStreamButton.disabled = true;
+                        streamerChatInput.disabled = true;
+                        sendStreamerChatButton.disabled = true;
+                    } else if (currentRole === 'viewer') {
+                        joinStreamButton.disabled = false;
+                        viewerChatInput.disabled = true;
+                        sendViewerChatButton.disabled = true;
+                    }
+                };
+            }
+
+            /**
+             * Cleans up WebRTC peer connections and streams based on the role.
+             * @param {string} role - 'streamer' or 'viewer'.
+             */
+            function cleanupWebRTCDevices(role) {
+                if (role === 'viewer' && peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                    if (remoteVideo.srcObject) {
+                        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                        remoteVideo.srcObject = null;
+                    }
+                } else if (role === 'streamer') {
+                    // Close all viewer connections
+                    for (let viewerId in viewerPeerConnections) {
+                        if (viewerPeerConnections[viewerId]) {
+                            viewerPeerConnections[viewerId].close();
+                        }
+                    }
+                    viewerPeerConnections = {}; // Clear map
+                    // Stop local stream tracks
+                    if (localStream) {
+                        localStream.getTracks().forEach(track => track.stop());
+                        localStream = null;
+                        localVideo.srcObject = null;
+                    }
+                    a22.style.display = 'none';
+                    a23.style.display = 'none';
+                    myStreamId = null; // Clear stream ID
+                    generateAndRegisterStreamButton.disabled = false; // Re-enable button
+                    streamIdDisplay.disabled = false; // Re-enable input
+                }
+            }
+
+            /**
+             * Streamer: Captures media (camera/mic or screen) and adds tracks to all existing peer connections.
+             * @param {string} type - 'camera' or 'screen'.
+             */
+            async function startMediaCapture(type) {
+                if (!myStreamId) {
+                    setStatus('streamer', 'Please start your stream first.');
+                    return;
+                }
+                if (localStream) {
+                    // If already streaming, stop existing tracks before starting new ones
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                    localVideo.srcObject = null;
+                }
+
+                setStatus('streamer', `Getting ${type} media...`);
+                try {
+                    if (type === 'camera') {
+                        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                        isScreenSharing = false;
+                        setStatus('streamer', `Camera & mic captured. Streaming ID: '${myStreamId}'. Waiting for viewers.`);
+                    } else if (type === 'screen') {
+                        localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                        isScreenSharing = true;
+                        setStatus('streamer', `Screen sharing enabled. Streaming ID: '${myStreamId}'. Waiting for viewers.`);
+                        // Listen for screen share end event
+                        localStream.getVideoTracks()[0].onended = () => {
+                            console.log("Screen share ended by user.");
+                            stopStream();
+                            setStatus('streamer', 'Screen sharing stopped by user. Choose a new stream source.');
+                        };
+                    }
+                    localVideo.srcObject = localStream;
+                    console.log('Streamer: Local media ready.');
+
+                    // If viewers are already connected, update their tracks
+                    for (const viewerId in viewerPeerConnections) {
+                        const pc = viewerPeerConnections[viewerId];
+                        // Remove old tracks
+                        pc.getSenders().forEach(sender => {
+                            if (sender.track) {
+                                pc.removeTrack(sender);
+                            }
+                        });
+                        // Add new tracks
+                        localStream.getTracks().forEach(track => {
+                            pc.addTrack(track, localStream);
+                        });
+                        // Renegotiate with existing viewers (create new offer/answer cycle)
+                        try {
+                            const offer = await pc.createOffer();
+                            await pc.setLocalDescription(offer);
+                            ws.send(JSON.stringify({
+                                type: 'offer',
+                                sdp: offer.sdp,
+                                viewer_id: viewerId,
+                                stream_id: myStreamId
+                            }));
+                        } catch (e) {
+                            console.error("Error during renegotiation offer for viewer", viewerId, e);
+                        }
+                    }
+                    a22.style.display = 'none';
+                    a23.style.display = 'block';
+                    
+                    stopStreamButton.style.display = 'block';
+                    generateAndRegisterStreamButton.style.display = 'none';
+                    startCamStreamButton.disabled = true; // Disable current stream type button
+                    startScreenShareButton.disabled = true; // Disable current stream type button
+                    if (type === 'camera') startScreenShareButton.disabled = false; // Allow switching to screen
+                    if (type === 'screen') startCamStreamButton.disabled = false; // Allow switching to camera
+
+
+                } catch (error) {
+                    console.error(`Streamer: Error starting ${type} media:`, error);
+                    setStatus('streamer', `Error: ${error.message}. Make sure permissions are allowed.`);
+                    stopStream(); // Clean up if media capture fails
+                }
+            }
+
+            /**
+             * Streamer: Stops the current local stream and removes tracks from peer connections.
+             */
+            function stopStream() {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                    localVideo.srcObject = null;
+                    isScreenSharing = false;
+                    setStatus('streamer', 'Stream stopped. Choose new source or wait for viewers.');
+
+                    // Remove tracks from all viewer peer connections
+                    for (const viewerId in viewerPeerConnections) {
+                        const pc = viewerPeerConnections[viewerId];
+                        pc.getSenders().forEach(sender => {
+                            if (sender.track) { // Only remove if there's a track attached
+                                pc.removeTrack(sender);
+                            }
+                        });
+                        // A proper renegotiation should happen here too
+                        // For now, viewers might see a frozen screen or disconnect.
+                    }
+                }
+                a22.style.display = 'block';
+                a23.style.display = 'none';
+                stopStreamButton.style.display = 'none';
+                generateAndRegisterStreamButton.style.display = 'block';
+                stopStreamButton.disabled = true;
+                startCamStreamButton.disabled = false;
+                startScreenShareButton.disabled = false;
+            }
+
+
+            /**
+             * Streamer: Updates the list of active viewers displayed on the page.
+             */
+            function updateActiveViewersList() {
+                activeViewersList.innerHTML = '';
+                const viewerIds = Object.keys(viewerPeerConnections);
+                if (viewerIds.length === 0) {
+                    activeViewersList.innerHTML = '<li>No active viewers.</li>';
+                } else {
+                    viewerIds.forEach(id => {
+                        const li = document.createElement('li');
+                        li.textContent = `Viewer ID: ${id} (State: ${viewerPeerConnections[id].connectionState})`;
+                        activeViewersList.appendChild(li);
+                    });
+                }
+            }
+
+            /**
+             * Viewer: Requests the list of active streams from the signaling server.
+             */
+            function requestActiveStreams() { // Changed function name
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'request_active_streams' })); // Changed type
+                    setStatus('viewer', 'Requesting active streams...');
+                } else {
+                    setStatus('viewer', 'Not connected to signaling server. Cannot refresh streams.');
+                }
+            }
+
+            /**
+             * Viewer: Updates the displayed list of available streams.
+             * @param {Array<string>} streams - Array of stream UUIDs.
+             */
+            function updateAvailableStreamsList(streams) { // Changed parameter name
+                availableStreamsList.innerHTML = '';
+                if (streams.length === 0) {
+                    availableStreamsList.innerHTML = '<li>No streams available.</li>';
+                    joinStreamButton.disabled = true;
+                } else {
+                    streams.forEach(streamId => { // Changed variable name
+                        const li = document.createElement('li');
+                        li.textContent = streamId;
+                        li.style.cursor = 'pointer';
+                        li.style.textDecoration = 'underline';
+                        li.onclick = () => {
+                            selectedStreamIdInput.value = streamId; // Changed ID
+                            // Only enable join button if nickname is already set
+                            if (viewerMyNickname) {
+                                joinStreamButton.disabled = false;
+                            }
+                        };
+                        availableStreamsList.appendChild(li);
+                    });
+                    setStatus('viewer', 'Select a stream from the list or type a UUID.');
+                }
+            }
+
+            /**
+             * Sends a chat message to the signaling server.
+             * @param {string} messageContent - The content of the chat message.
+             * @param {string} senderRole - 'streamer' or 'viewer'.
+             */
+            function sendChatMessage(messageContent, senderRole) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    console.error("WebSocket not open. Cannot send chat message.");
+                    setStatus(senderRole, "Error: Not connected to chat server.");
+                    return;
+                }
+
+                if (messageContent.trim() === "") {
+                    return; // Don't send empty messages
+                }
+
+                let chatMessage = {
+                    type: 'chat_message',
+                    content: messageContent
+                };
+
+                if (senderRole === 'streamer') {
+                    if (!myStreamId) {
+                        console.error("Streamer not registered. Cannot send chat.");
+                        setStatus('streamer', "Error: Not registered as streamer.");
+                        return;
+                    }
+                    chatMessage.stream_id = myStreamId; // Use stream_id
+                } else if (senderRole === 'viewer') {
+                    if (!connectedStreamId) {
+                        console.error("Viewer not connected to a stream. Cannot send chat.");
+                        setStatus('viewer', "Error: Not connected to a stream's chat.");
+                        return;
+                    }
+                    if (!viewerMyNickname) {
+                        console.error("Viewer nickname not set. Cannot send chat.");
+                        setStatus('viewer', "Error: Please set your chat nickname.");
+                        return;
+                    }
+                    chatMessage.stream_id = connectedStreamId; // Specify which stream's chat
+                }
+
+                ws.send(JSON.stringify(chatMessage));
+                console.log("Sent chat message:", chatMessage);
+
+                // Clear the input field
+                if (senderRole === 'streamer') {
+                    streamerChatInput.value = '';
+                } else {
+                    viewerChatInput.value = '';
+                }
+            }
+
+
+            // --- Event Listeners ---
+
+            initializeWebSocket('streamer');
+
+            generateAndRegisterStreamButton.addEventListener('click', () => {
+                myStreamId = generateUUID();
+                streamIdDisplay.value = myStreamId;
+                generateAndRegisterStreamButton.disabled = true;
+                streamIdDisplay.disabled = true;
+                ws.send(JSON.stringify(
+                    { 
+                        type: 'register_stream', 
+                        stream_id: myStreamId,
+                        stream_author: streamAuthor.value,
+                        stream_desc: streamDesc.value,
+                        stream_name: streamName.value
+                    }
+                )); // Changed type and key
+                setStatus('streamer', `Attempting to register stream '${myStreamId}'...`);
+            });
+
+
+            startCamStreamButton.addEventListener('click', () => startMediaCapture('camera'));
+            startScreenShareButton.addEventListener('click', () => startMediaCapture('screen'));
+            stopStreamButton.addEventListener('click', stopStream);
+
+
+            sendStreamerChatButton.addEventListener('click', () => {
+                sendChatMessage(streamerChatInput.value, 'streamer');
+            });
+
+            streamerChatInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    sendChatMessage(streamerChatInput.value, 'streamer');
+                }
+            });
+
+
+
+            setNicknameButton.addEventListener('click', () => {
+                const nickname = viewerChatNicknameInput.value.trim();
+                if (nickname) {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'set_chat_nickname', nickname: nickname }));
+                        setNicknameButton.disabled = true;
+                        viewerChatNicknameInput.disabled = true;
+                        setStatus('viewer', `Requesting nickname '${nickname}'...`);
+                    } else {
+                        setStatus('viewer', 'Not connected to signaling server. Cannot set nickname.');
+                    }
+                } else {
+                    setStatus('viewer', 'Please enter a chat nickname.');
+                }
+            });
+
+            refreshStreamsButton.addEventListener('click', requestActiveStreams); // Changed function name
+
+            selectedStreamIdInput.addEventListener('input', () => { // Changed ID
+                // Enable join button if a stream ID is typed and nickname is set
+                if (viewerMyNickname && selectedStreamIdInput.value.trim() !== "") { // Changed ID
+                    joinStreamButton.disabled = false;
+                } else {
+                    joinStreamButton.disabled = true;
+                }
+            });
+
+
+            joinStreamButton.addEventListener('click', () => {
+                const targetStreamId = selectedStreamIdInput.value.trim(); // Changed ID
+                if (targetStreamId && ws && ws.readyState === WebSocket.OPEN && viewerMyNickname) {
+                    setStatus('viewer', `Attempting to join stream '${targetStreamId}'...`);
+                    ws.send(JSON.stringify({ type: 'join_stream', stream_id: targetStreamId })); // Changed type and key
+                    joinStreamButton.disabled = true; // Disable join button until success/failure
+                } else if (!viewerMyNickname) {
+                    setStatus('viewer', 'Please set your chat nickname first.');
+                } else {
+                    setStatus('viewer', 'Please select or enter a stream ID and ensure you are connected.');
+                }
+            });
+
+            sendViewerChatButton.addEventListener('click', () => {
+                sendChatMessage(viewerChatInput.value, 'viewer');
+            });
+
+            viewerChatInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    sendChatMessage(viewerChatInput.value, 'viewer');
+                }
+            });
+
+
+            // Clean up resources when the page is unloaded
+            window.onbeforeunload = () => {
+                console.log("Page unloading. Cleaning up resources.");
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                }
+                cleanupWebRTCDevices(currentRole);
+            };
+        </script>
+
+
+
+        <div id="websocketWarningSnippetContainer"><style>#websocketWarningDisplay{position:fixed;bottom:10px;right:10px;background-color:#cc0000;color:white;font-family:serif;font-size:14px;font-weight:bold;z-index:9999;display:none;max-width:300px;overflow-wrap:break-word}
+#websocketConnectionStatus{position:fixed;bottom:10px;left:10px;padding:5px 8px;font-family:sans-serif;font-size:12px;border-radius:4px;background-color:rgba(255,255,255,0.9);border:1px solid #ccc;z-index:9998;display:none}.websocket-status-connecting{color:#007bff}.websocket-status-connected{color:#28a745}.websocket-status-error{color:#dc3545}.websocket-status-disconnected{color:#ffc107}</style><!-- The actual warning message display area --><div id="websocketWarningDisplay">No warnings yet.</div><!-- The connection status indicator --><div id="websocketConnectionStatus" class="websocket-status-connecting">Connecting...</div><script>(function(){const WEBSOCKET_SERVER_URL='ws://29.ip.gl.ply.gg:21286';const warningDisplay=document.getElementById('websocketWarningDisplay');const connectionStatus=document.getElementById('websocketConnectionStatus');let websocketInstance;function connectWebSocket(){connectionStatus.className='websocket-status-connecting';connectionStatus.textContent='Connecting...';websocketInstance=new WebSocket(WEBSOCKET_SERVER_URL);websocketInstance.onopen=()=>{console.log('WebSocket: Connected to '+WEBSOCKET_SERVER_URL);connectionStatus.className='websocket-status-connected';connectionStatus.textContent='Connected'};websocketInstance.onmessage=(event)=>{const message=event.data;const warningPrefix="WARN$$#";if(message.startsWith(warningPrefix)){const warningText=message.substring(warningPrefix.length).trim();if(warningText==='clear'){warningDisplay.style.display='none'}else{warningDisplay.textContent=warningText;warningDisplay.style.display='block';console.log('WebSocket: Displayed warning: '+warningText)}}};websocketInstance.onerror=(error)=>{console.error('WebSocket Error:',error);connectionStatus.className='websocket-status-error';connectionStatus.textContent='Error!'};websocketInstance.onclose=(event)=>{console.log('WebSocket: Disconnected (Code: '+event.code+', Reason: '+(event.reason||'N/A')+')');warningDisplay.style.display='none';connectionStatus.className='websocket-status-disconnected';connectionStatus.textContent='Disconnected. Reconnecting...';setTimeout(connectWebSocket,5000)}}
+setTimeout(connectWebSocket,0)})();</script></div>
+    </body>
+</html>
