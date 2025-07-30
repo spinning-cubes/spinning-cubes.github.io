@@ -220,7 +220,7 @@
              */
             function initializeWebSocket(role) {
                 currentRole = role;
-                const signalingServerUrl = `ws://localhost:8766/${role}`;
+                const signalingServerUrl = `ws://30.ip.gl.ply.gg:43283/${role}`;
                 setStatus(role, `Connecting to signaling server as ${role}...`);
 
                 ws = new WebSocket(signalingServerUrl);
