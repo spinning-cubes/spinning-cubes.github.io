@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ding!</title>
+    <style>
+        body {
+            text-align: center;
+            margin: 0;
+            min-height: 100vh;
+        }
+        
+        #dingMessage {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body onload="requestNotificationPermission()">
+    
+    <div id="mainContent">
+        <h1>Ding<i>!</i></h1>
+    
+        <button id="soundButton" onclick="triggerSound()">
+            SEND DING
+        </button>
+
+        <p id="permStatus">Notifications: Checking...</p>
+        
+        <p id="status" style="display: none;">Connecting...</p>
+    </div>
+
+    <div id="dingMessage">
+        <b><h1>GET DINGED SUCKER</h1></b>
+    </div>
+
+    <audio id="bellSound" src="http://229.ip.gl.ply.gg:15486/ding2/sound.mp3" preload="auto"></audio>
+
+    <script>
+        // --- Globals ---
+        let notificationPermission = 'default';
+
+        // --- DOM Elements ---
+        const socket = new WebSocket("ws://147.185.221.31:53902/");
+        const statusElement = document.getElementById("status");
+        const permStatusElement = document.getElementById("permStatus"); // NEW
+        const soundElement = document.getElementById("bellSound");
+        const dingMessageElement = document.getElementById("dingMessage");
+
+        // --- Notification Functions (NEW) ---
+
+        /**
+         * Prompts the user for notification permission when the page loads.
+         */
+        function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                permStatusElement.innerHTML = "Notifications: Not supported.";
+                return;
+            }
+
+            notificationPermission = Notification.permission;
+            permStatusElement.innerHTML = `Notifications: ${notificationPermission}`;
+
+            if (notificationPermission === 'default') {
+                // The browser will show a prompt to the user here.
+                Notification.requestPermission().then(permission => {
+                    notificationPermission = permission;
+                    permStatusElement.innerHTML = `Notifications: ${permission}`;
+                });
+            }
+        }
+
+        /**
+         * Shows a browser notification if permission is granted.
+         */
+        function showNotification() {
+            if (notificationPermission === 'granted') {
+                const options = {
+                    body: "Ding!",
+                    // Using a placeholder icon; replace this URL with your own if needed.
+                    icon: "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://229.ip.gl.ply.gg:15486" 
+                };
+                new Notification("GET DINGED SUCKER!", options);
+            }
+        }
+
+        // --- WebSocket Handlers ---
+        socket.onopen = function(e) {
+            statusElement.innerHTML = "connected";
+            // Update status on connection
+            notificationPermission = Notification.permission;
+            permStatusElement.innerHTML = `Notifications: ${notificationPermission}`;
+        };
+
+        socket.onmessage = function(event) {
+            if (event.data === "PLAY_SOUND") {
+                playSound();
+                showNotification(); // TRIGGER NOTIFICATION HERE
+            }
+        };
+
+        socket.onclose = function(event) {
+            statusElement.innerHTML = (event.wasClean) 
+                ? `no connection, code ${event.code}`
+                : "no connection";
+        };
+
+        socket.onerror = function(error) {
+            statusElement.innerHTML = `error, ${error.message}`;
+        };
+
+        // --- Application Logic ---
+        
+        function triggerSound() {
+            // Note: Calling this function immediately satisfies the browser's
+            // requirement for user interaction, allowing the sound to play.
+            if (socket.readyState === WebSocket.OPEN) {
+                playSound(); 
+                socket.send("CLICK");
+            } else {
+                alert("WebSocket is not connected yet!");
+            }
+        }
+
+        function playSound() {
+            // Fix for rapid sound playback
+            soundElement.pause();
+            soundElement.currentTime = 0;
+            
+            soundElement.play()
+                .catch(e => {
+                    console.warn("Autoplay was blocked. Must interact with page first.", e);
+                });
+            
+            // Display the "GET DINGED" message using minimal styles in JS
+            document.body.style.backgroundColor = '#ffff00'; // Flash background
+
+            // Hide the message and reset the background after a short time
+            setTimeout(() => {
+                dingMessageElement.style.opacity = '0';
+                document.body.style.backgroundColor = 'white';
+            }, 500); 
+        }
+    </script>
+</body>
+</html>
